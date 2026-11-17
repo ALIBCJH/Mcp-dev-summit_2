@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hotels
+  namespace: safiri
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: hotels}
+  template:
+    metadata:
+      labels: {app: hotels}
+    spec:
+      containers:
+        - name: hotels
+          image: safiri:demo2
+          imagePullPolicy: Never
+          command: ["python", "servers/hotels_server.py"]
+          env:
+            - {name: MCP_TRANSPORT, value: http}
+            - {name: BIND_HOST, value: "0.0.0.0"}
+            - {name: PORT, value: "9000"}
+          ports:
+            - containerPort: 9000
+          readinessProbe:
+            tcpSocket: {port: 9000}
+            periodSeconds: 2
+          resources:
+            requests: {memory: 64Mi}
+            limits: {memory: 128Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hotels
+  namespace: safiri
+spec:
+  selector: {app: hotels}
+  ports:
+    - port: 9000

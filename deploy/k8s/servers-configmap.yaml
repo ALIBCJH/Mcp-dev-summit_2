@@ -1,0 +1,14 @@
+# Where the host finds each MCP server: all three through the gateway.
+# The host never talks to a server directly.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: servers
+  namespace: safiri
+data:
+  servers.json: |
+    [
+      {"name": "flights",  "url": "http://gateway:8080/flights/mcp"},
+      {"name": "hotels",   "url": "http://gateway:8080/hotels/mcp"},
+      {"name": "bookings", "url": "http://gateway:8080/bookings/mcp"}
+    ]

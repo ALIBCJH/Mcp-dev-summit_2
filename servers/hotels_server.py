@@ -4,6 +4,7 @@ Logs go to stderr because stdout is the MCP wire.
 """
 
 import logging
+import os
 import sys
 from pathlib import Path
 
@@ -124,4 +125,12 @@ def plan_trip(destination: str, days: int) -> str:
 
 
 if __name__ == "__main__":
-    mcp.run()
+    # Demo 2 (k3d): MCP_TRANSPORT=http serves the same tools over Streamable
+    # HTTP, exactly like the bookings server. Unset means stdio, as in Demo 1.
+    if os.environ.get("MCP_TRANSPORT", "stdio") == "http":
+        bind_host = os.environ.get("BIND_HOST", "127.0.0.1")
+        port = int(os.environ.get("PORT", "9000"))
+        log.info("listening on http://%s:%d/mcp", bind_host, port)
+        mcp.run("streamable-http", host=bind_host, port=port, streamable_http_path="/mcp", stateless_http=True)
+    else:
+        mcp.run()

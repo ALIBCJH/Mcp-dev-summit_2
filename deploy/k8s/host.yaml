@@ -1,0 +1,60 @@
+# The same FastAPI app as Demo 1. One replica: it holds the conversation
+# and the event log in memory.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: host
+  namespace: safiri
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: host}
+  template:
+    metadata:
+      labels: {app: host}
+    spec:
+      containers:
+        - name: host
+          image: safiri:demo2
+          imagePullPolicy: Never
+          command: ["python", "web/app.py"]
+          env:
+            - {name: WEB_BIND, value: "0.0.0.0"}
+            - {name: WEB_PORT, value: "8000"}
+            - {name: SERVERS_FILE, value: /config/servers.json}
+            - {name: POLICY_SOURCE, value: file}
+            - {name: POLICY_FILE, value: /policy/policy.txt}
+          # ANTHROPIC_* come from the Secret made from the local .env by
+          # `kubectl create secret generic safiri-api --from-env-file=.env`.
+          envFrom:
+            - secretRef: {name: safiri-api}
+          ports:
+            - containerPort: 8000
+          readinessProbe:
+            httpGet: {path: /api/state, port: 8000}
+            periodSeconds: 2
+          volumeMounts:
+            - {name: servers, mountPath: /config}
+            # Whole directory, no subPath: the file then follows ConfigMap edits.
+            - {name: policy, mountPath: /policy}
+          resources:
+            requests: {memory: 128Mi}
+            limits: {memory: 256Mi}
+      volumes:
+        - name: servers
+          configMap: {name: servers}
+        - name: policy
+          configMap: {name: policy}
+---
+# NodePort 30080 is mapped to 127.0.0.1:8080 on the laptop by k3d.
+apiVersion: v1
+kind: Service
+metadata:
+  name: host
+  namespace: safiri
+spec:
+  type: NodePort
+  selector: {app: host}
+  ports:
+    - port: 8000
+      nodePort: 30080

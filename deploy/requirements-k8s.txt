@@ -1,0 +1,2 @@
+# Demo 2 only. Imported only when BOOKINGS_STORE=redis (servers/_store.py).
+redis==8.1.0

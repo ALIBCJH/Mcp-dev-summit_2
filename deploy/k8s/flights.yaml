@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flights
+  namespace: safiri
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: flights}
+  template:
+    metadata:
+      labels: {app: flights}
+    spec:
+      containers:
+        - name: flights
+          image: safiri:demo2
+          imagePullPolicy: Never
+          command: ["python", "servers/flights_server.py"]
+          env:
+            - {name: MCP_TRANSPORT, value: http}
+            - {name: BIND_HOST, value: "0.0.0.0"}
+            - {name: PORT, value: "9000"}
+          ports:
+            - containerPort: 9000
+          readinessProbe:
+            tcpSocket: {port: 9000}
+            periodSeconds: 2
+          resources:
+            requests: {memory: 64Mi}
+            limits: {memory: 128Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: flights
+  namespace: safiri
+spec:
+  selector: {app: flights}
+  ports:
+    - port: 9000

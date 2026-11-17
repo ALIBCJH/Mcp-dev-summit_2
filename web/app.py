@@ -237,8 +237,10 @@ def main() -> None:
     print(f"Claude API key found: {'yes' if os.environ.get('ANTHROPIC_API_KEY') else 'no'}")
     port = int(os.environ.get("WEB_PORT", DEFAULT_PORT))
     app = create_app(ClaudeLLM, load_configs())
-    print(f"Open http://{BIND_HOST}:{port}/")
-    uvicorn.run(app, host=BIND_HOST, port=port, log_level="warning")
+    # Demo 2 (k3d): WEB_BIND=0.0.0.0 so the Service can reach the pod.
+    bind_host = os.environ.get("WEB_BIND", BIND_HOST)
+    print(f"Open http://{bind_host}:{port}/")
+    uvicorn.run(app, host=bind_host, port=port, log_level="warning")
 
 
 if __name__ == "__main__":

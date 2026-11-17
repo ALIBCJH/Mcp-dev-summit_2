@@ -1,0 +1,16 @@
+# The allow-list: which tools may be called. One "tool_name kind" per line.
+# Mounted as a file in the host and in the gateway; both re-read it when it
+# changes, with no rebuild and no restart. Remove a line to forbid a tool:
+#   kubectl -n safiri edit configmap policy
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: policy
+  namespace: safiri
+data:
+  policy.txt: |
+    search_flights     read_only
+    get_flight_status  read_only
+    search_hotels      read_only
+    book_trip          side_effect
+    cancel_booking     side_effect

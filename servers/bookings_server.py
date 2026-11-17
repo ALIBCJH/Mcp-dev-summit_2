@@ -16,6 +16,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _data import load  # noqa: E402
+from _store import make_store  # noqa: E402
 
 logging.basicConfig(
     level=logging.INFO, stream=sys.stderr, format="[bookings] %(levelname)s %(message)s"
@@ -34,6 +35,12 @@ HOTELS = {h["hotel_id"]: h for h in load("hotels.json")}
 # Bookings live in memory and are lost on restart. Demo 2 (k3d, Redis) moves
 # them to a real store so that several replicas see the same bookings.
 BOOKINGS: dict[str, dict] = {}
+# BOOKINGS_STORE unset or "memory": the dict above, as in Demo 1.
+# BOOKINGS_STORE=redis: REDIS_URL, shared by every replica.
+STORE = make_store(BOOKINGS)
+# Demo 2: the same flight, hotel and nights within this many seconds returns
+# the first booking instead of making a second. Unset or 0 = off, as in Demo 1.
+REPEAT_SECONDS = int(os.environ.get("BOOKING_REPEAT_SECONDS", "0"))
 
 mcp = MCPServer("bookings")
 
@@ -69,7 +76,7 @@ def book_trip(flight: str, hotel_id: str, nights: int) -> dict:
         )
 
     booking_id = f"BK-{uuid.uuid4().hex[:8].upper()}"
-    BOOKINGS[booking_id] = {
+    booking = {
         "booking_id": booking_id,
         "flight": flight_key,
         "hotel_id": hotel_key,
@@ -78,17 +85,21 @@ def book_trip(flight: str, hotel_id: str, nights: int) -> dict:
         "total_kes": total,
         "status": "confirmed",
     }
+    standing = STORE.save(booking, REPEAT_SECONDS)
+    if standing["booking_id"] != booking_id:
+        log.info("repeat request: returning %s, no new booking", standing["booking_id"])
+        return standing
     log.info("booked %s: %s + %s x%d = KES %d", booking_id, flight_key, hotel_key, nights, total)
-    return BOOKINGS[booking_id]
+    return booking
 
 
 @mcp.tool()
 def cancel_booking(booking_id: str) -> dict:
     """Cancel an existing booking by its id (e.g. BK-1A2B3C4D)."""
     key = booking_id.strip().upper()
-    if key not in BOOKINGS:
+    booking = STORE.pop(key)
+    if booking is None:
         raise ToolError(f"Unknown booking_id {booking_id!r}.")
-    booking = BOOKINGS.pop(key)
     booking["status"] = "cancelled"
     log.info("cancelled %s", key)
     return booking
@@ -96,7 +107,9 @@ def cancel_booking(booking_id: str) -> dict:
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", "9000"))
-    log.info("listening on http://127.0.0.1:%d/mcp", port)
+    # Demo 2 (k3d): BIND_HOST=0.0.0.0 so the Service can reach the pod.
+    bind_host = os.environ.get("BIND_HOST", "127.0.0.1")
+    log.info("listening on http://%s:%d/mcp", bind_host, port)
     # stateless_http=True: no session ids, so any replica can serve any
     # request. That is what Demo 2 (k3d) needs.
-    mcp.run("streamable-http", host="127.0.0.1", port=port, streamable_http_path="/mcp", stateless_http=True)
+    mcp.run("streamable-http", host=bind_host, port=port, streamable_http_path="/mcp", stateless_http=True)

@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bookings
+  namespace: safiri
+spec:
+  replicas: 2
+  selector:
+    matchLabels: {app: bookings}
+  template:
+    metadata:
+      labels: {app: bookings}
+    spec:
+      containers:
+        - name: bookings
+          image: safiri:demo2
+          imagePullPolicy: Never
+          command: ["python", "servers/bookings_server.py"]
+          env:
+            - {name: BIND_HOST, value: "0.0.0.0"}
+            - {name: PORT, value: "9000"}
+            - {name: BOOKINGS_STORE, value: redis}
+            - {name: REDIS_URL, value: "redis://redis:6379/0"}
+            # The same flight, hotel and nights within 10 minutes is one booking.
+            - {name: BOOKING_REPEAT_SECONDS, value: "600"}
+          # When a pod is deleted, wait 5 s before stopping the server, so
+          # Kubernetes has stopped sending it new requests by then.
+          lifecycle:
+            preStop:
+              sleep: {seconds: 5}
+          ports:
+            - containerPort: 9000
+          readinessProbe:
+            tcpSocket: {port: 9000}
+            periodSeconds: 2
+          resources:
+            requests: {memory: 64Mi}
+            limits: {memory: 128Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bookings
+  namespace: safiri
+spec:
+  selector: {app: bookings}
+  ports:
+    - port: 9000

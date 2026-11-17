@@ -1,0 +1,39 @@
+# Redis holds the bookings so both bookings replicas see the same ones.
+# No volume: bookings are lost if this pod restarts, which is fine for a demo.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: safiri
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: redis}
+  template:
+    metadata:
+      labels: {app: redis}
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          imagePullPolicy: Never
+          # No snapshots to disk, and stay well inside the 64Mi limit.
+          args: ["--save", "", "--appendonly", "no", "--maxmemory", "32mb"]
+          ports:
+            - containerPort: 6379
+          readinessProbe:
+            exec: {command: ["redis-cli", "ping"]}
+            periodSeconds: 2
+          resources:
+            requests: {memory: 32Mi}
+            limits: {memory: 64Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: safiri
+spec:
+  selector: {app: redis}
+  ports:
+    - port: 6379

@@ -99,7 +99,9 @@ def print_event(event: Event) -> None:
 
 
 def load_configs() -> list[ServerConfig]:
-    with open(PROJECT_ROOT / "servers.json") as f:
+    # Demo 2 (k3d): SERVERS_FILE points at a mounted file of gateway URLs.
+    # A relative path is taken from the project root; unset means servers.json.
+    with open(PROJECT_ROOT / os.environ.get("SERVERS_FILE", "servers.json")) as f:
         return [ServerConfig.from_dict(entry) for entry in json.load(f)]
 
 

@@ -1,0 +1,11 @@
+# Allow-list: ignore everything, then name what the image needs.
+# .env, .git, .venv and deploy/kubeconfig.yaml can never reach the image.
+*
+!requirements.txt
+!deploy/requirements-k8s.txt
+!deploy/wheels/
+!deploy/gateway/
+!host/
+!web/
+!servers/
+**/__pycache__

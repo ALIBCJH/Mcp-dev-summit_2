@@ -1,0 +1,51 @@
+# The one door to the three MCP servers. See deploy/gateway/gateway.py.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway
+  namespace: safiri
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: gateway}
+  template:
+    metadata:
+      labels: {app: gateway}
+    spec:
+      containers:
+        - name: gateway
+          image: safiri:demo2
+          imagePullPolicy: Never
+          command: ["python", "deploy/gateway/gateway.py"]
+          env:
+            - {name: BIND_HOST, value: "0.0.0.0"}
+            - {name: GATEWAY_PORT, value: "8080"}
+            - {name: GATEWAY_SERVERS, value: "flights,hotels,bookings"}
+            - {name: UPSTREAM_TEMPLATE, value: "http://{server}:9000/mcp"}
+            - {name: POLICY_SOURCE, value: file}
+            - {name: POLICY_FILE, value: /policy/policy.txt}
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+            httpGet: {path: /healthz, port: 8080}
+            periodSeconds: 2
+          # The whole directory is mounted (no subPath): only then does
+          # Kubernetes update the file when the ConfigMap changes.
+          volumeMounts:
+            - {name: policy, mountPath: /policy}
+          resources:
+            requests: {memory: 64Mi}
+            limits: {memory: 128Mi}
+      volumes:
+        - name: policy
+          configMap: {name: policy}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway
+  namespace: safiri
+spec:
+  selector: {app: gateway}
+  ports:
+    - port: 8080
