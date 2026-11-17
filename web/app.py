@@ -162,6 +162,12 @@ def create_app(llm_factory: Callable[[], Any], configs: list[ServerConfig], syst
             response.headers["Cache-Control"] = "no-store"
         return response
 
+    # Demo 2 (k3d): UI_SKIN=k8s adds the cluster look. Its own "/" is
+    # registered first, so it wins. Unset: the page below, as in Demo 1.
+    if os.environ.get("UI_SKIN") == "k8s":
+        from web.skin_k8s import install
+        install(app, demo)
+
     @app.get("/")
     async def index() -> FileResponse:
         return FileResponse(STATIC_DIR / "index.html")

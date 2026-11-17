@@ -24,6 +24,9 @@ spec:
             - {name: SERVERS_FILE, value: /config/servers.json}
             - {name: POLICY_SOURCE, value: file}
             - {name: POLICY_FILE, value: /policy/policy.txt}
+            # The cluster look, and the Redis the bookings card reads (never writes).
+            - {name: UI_SKIN, value: k8s}
+            - {name: REDIS_URL, value: "redis://redis:6379/0"}
           # ANTHROPIC_* come from the Secret made from the local .env by
           # `kubectl create secret generic safiri-api --from-env-file=.env`.
           envFrom:
