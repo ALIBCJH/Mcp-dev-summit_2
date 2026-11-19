@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Safiri Cluster Console</title>
+<link rel="stylesheet" href="/k8s/console.css?v=__STAMP__">
+</head>
+<body>
+<header class="bar">
+  <span class="brand">Safiri</span>
+  <span class="badge k8s">Demo 2 · Kubernetes</span>
+  <span class="where" id="where">cluster k3d-safiri · namespace safiri</span>
+  <span class="pods-ready" id="pods-ready" title="Pods ready in namespace safiri">…</span>
+  <span class="model" id="model"></span>
+  <span class="spacer"></span>
+  <span class="conn" id="conn" title="Live event stream">●</span>
+  <button type="button" id="tour-btn" title="How Safiri is built, step by step (A)">Tour</button>
+  <button type="button" id="reset-btn" title="Clear the conversation">Reset</button>
+  <button type="button" id="theme-btn" title="Light or dark (T)">Light</button>
+  <button type="button" id="closing-btn" title="Closing card (K)">Kwaheri</button>
+</header>
+
+<main class="console">
+  <section class="chat" aria-label="Chat">
+    <div class="pane-head"><span class="tag you">TRAVELLER</span><span class="muted">what's your request</span></div>
+    <div id="chat-log" class="chat-log"></div>
+    <div class="chat-controls">
+      <div class="quick">
+        <button type="button" data-send="Find me a flight from Nairobi to Ukunda and a hotel in Diani Beach for 2 nights">Diani trip</button>
+        <button type="button" data-send="Book flight KF101 with hotel DIA-GALU for 2 nights. I confirm, book it now.">Book KF101 + Galu</button>
+        <button type="button" data-send="What is the status of flight NY415?">Flight status NY415</button>
+      </div>
+      <form id="chat-form">
+        <input id="chat-input" type="text" autocomplete="off" placeholder="Ask Safiri, or /plan-trip <place> <days>">
+        <button id="send-btn" type="submit">Send</button>
+      </form>
+    </div>
+  </section>
+
+  <section class="ops" aria-label="The cluster">
+    <div class="map-wrap">
+      <div class="pane-head"><span class="tag k8s">CLUSTER MAP</span><span class="muted" id="map-caption">live: every tool call travels host → gateway → pod</span></div>
+      <div id="map" class="map"></div>
+      <!-- The architecture tour's caption, under the map while the tour runs. -->
+      <div id="tour" class="tour" hidden>
+        <div class="tour-caption">
+          <div class="tour-top"><span class="tag k8s">HOW SAFIRI IS BUILT</span><span id="tour-count" class="muted"></span></div>
+          <p id="tour-headline" class="tour-headline"></p>
+          <p id="tour-body" class="tour-body"></p>
+          <p id="tour-term" class="tour-term"><span class="label">The Kubernetes word:</span> <b class="word"></b> — <span class="means"></span></p>
+        </div>
+        <div class="tour-controls">
+          <button type="button" id="tour-back">← Back</button>
+          <button type="button" id="tour-next" class="primary">Next →</button>
+          <button type="button" id="tour-skip" class="quiet">Skip (Esc)</button>
+        </div>
+      </div>
+    </div>
+    <div class="trace-wrap">
+      <div class="pane-head"><span class="tag mcp">TRACE</span><span class="muted">one line per step · click a line for details</span></div>
+      <div id="trace" class="trace"></div>
+    </div>
+    <div class="cards">
+      <div class="card">
+        <div class="card-head"><span class="tag k8s">POLICY</span><span class="muted">ConfigMap policy · read live</span></div>
+        <div id="policy-chips" class="chips"></div>
+        <div id="policy-note" class="policy-note"></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><span class="tag mcp">BOOKINGS</span><span class="muted">Redis · shared by both bookings pods</span></div>
+        <div id="bookings" class="bookings"></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- Closing card: K opens it; any key or click closes it. -->
+<div id="closing" class="overlay closing" hidden>
+  <p class="kicker">Kwaheri from</p>
+  <p class="big">Safiri</p>
+  <p class="line">The code decides how to check. The config decides what's allowed.</p>
+  <p id="closing-stats" class="stats"></p>
+  <p class="hint">any key or click closes</p>
+</div>
+
+<script src="/static/markdown.js"></script>
+<script src="/k8s/console_model.js?v=__STAMP__"></script>
+<script src="/k8s/console_map.js?v=__STAMP__"></script>
+<script src="/k8s/console_tour.js?v=__STAMP__"></script>
+<script src="/k8s/console.js?v=__STAMP__"></script>
+</body>
+</html>

@@ -3,13 +3,14 @@
 Switched on by UI_SKIN=k8s in the host pod. Unset, this module is never
 imported and the page is Demo 1's, byte for byte.
 
-It adds three things and changes nothing in web/static:
-    GET /                the same index.html with three extra tags
-    GET /k8s/...         the extra CSS and scripts (web/static_k8s)
-    GET /api/cluster     what the cluster card shows: policy and bookings
+It adds these routes and changes nothing in web/static:
+    GET /                the cluster console (web/static_k8s/console.html)
+    GET /k8s/...         the console's CSS and scripts
+    GET /api/cluster     policy, bookings and (POD_WATCH=on) the pods
 
-The card is display only. Every decision is still made by host/policy.py
-and the gateway; the bookings rows are read from Redis, never written.
+All of it is display only. Every decision is still made by host/policy.py
+and the gateway; bookings are read from Redis, never written; pods are
+listed, never changed.
 """
 
 from __future__ import annotations
@@ -17,7 +18,9 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import ssl
 import time
+import urllib.request
 from pathlib import Path
 from typing import Any
 
@@ -27,34 +30,9 @@ from fastapi.staticfiles import StaticFiles
 
 from host import policy
 
-STATIC_DIR = Path(__file__).parent / "static"
 SKIN_DIR = Path(__file__).parent / "static_k8s"
 # A new pod means new files: the stamp stops the browser reusing old ones.
 STAMP = str(int(time.time()))
-
-
-def page() -> str:
-    """index.html plus the skin's tags. Each anchor must be found exactly
-    once, so a later change to index.html fails loudly here, not silently."""
-    html = (STATIC_DIR / "index.html").read_text()
-    edits = [
-        ('data-theme="light"', 'data-theme="light" data-skin="k8s"'),
-        ('<link rel="stylesheet" href="/static/style.css">',
-         '<link rel="stylesheet" href="/static/style.css">\n'
-         f'<link rel="stylesheet" href="/k8s/cluster.css?v={STAMP}">'),
-        # After the flow table, before the code that draws it.
-        ('<script src="/static/flow_data.js"></script>',
-         '<script src="/static/flow_data.js"></script>\n'
-         f'<script src="/k8s/cluster_flow.js?v={STAMP}"></script>'),
-        ('<script src="/static/app.js"></script>',
-         '<script src="/static/app.js"></script>\n'
-         f'<script src="/k8s/cluster_card.js?v={STAMP}"></script>'),
-    ]
-    for old, new in edits:
-        if html.count(old) != 1:
-            raise RuntimeError(f"skin_k8s: expected exactly one {old!r} in index.html")
-        html = html.replace(old, new)
-    return html
 
 
 def _policy_rows(demo: Any) -> list[dict[str, str]]:
@@ -87,13 +65,43 @@ def _read_redis(url: str) -> dict[str, Any]:
         client.close()
 
 
+# POD_WATCH=on: list the pods in this namespace with the pod's own service
+# account (read-only Role in deploy/k8s/host.yaml). Only the fields below
+# leave this function; never the pod spec, never the token.
+SA_DIR = Path("/var/run/secrets/kubernetes.io/serviceaccount")
+
+
+def _read_pods() -> list[dict[str, Any]]:
+    token = (SA_DIR / "token").read_text().strip()
+    namespace = (SA_DIR / "namespace").read_text().strip()
+    context = ssl.create_default_context(cafile=str(SA_DIR / "ca.crt"))
+    api = f"https://{os.environ['KUBERNETES_SERVICE_HOST']}:{os.environ['KUBERNETES_SERVICE_PORT']}"
+    request = urllib.request.Request(f"{api}/api/v1/namespaces/{namespace}/pods",
+                                     headers={"Authorization": f"Bearer {token}"})
+    with urllib.request.urlopen(request, context=context, timeout=2) as reply:
+        items = json.load(reply).get("items", [])
+    pods = []
+    for item in items:
+        meta, status = item.get("metadata", {}), item.get("status", {})
+        containers = status.get("containerStatuses") or []
+        pods.append({
+            "name": meta.get("name", ""),
+            "app": (meta.get("labels") or {}).get("app", ""),
+            "phase": status.get("phase", "Unknown"),
+            "ready": bool(containers) and all(c.get("ready") for c in containers),
+            "terminating": bool(meta.get("deletionTimestamp")),
+            "restarts": sum(c.get("restartCount", 0) for c in containers),
+        })
+    return sorted(pods, key=lambda p: (p["app"], p["name"]))
+
+
 def install(app: FastAPI, demo: Any) -> None:
     app.mount("/k8s", StaticFiles(directory=str(SKIN_DIR)), name="k8s")
-    html = page()
+    console = (SKIN_DIR / "console.html").read_text().replace("__STAMP__", STAMP)
 
     @app.get("/")
     async def index() -> HTMLResponse:
-        return HTMLResponse(html)
+        return HTMLResponse(console, headers={"Cache-Control": "no-store"})
 
     @app.get("/api/cluster")
     async def cluster() -> dict[str, Any]:
@@ -101,6 +109,7 @@ def install(app: FastAPI, demo: Any) -> None:
             "pod": os.environ.get("HOSTNAME", ""),
             "policy": _policy_rows(demo),
             "store": None,
+            "pods": None,
         }
         url = os.environ.get("REDIS_URL")
         if url:
@@ -108,4 +117,9 @@ def install(app: FastAPI, demo: Any) -> None:
                 view["store"] = await asyncio.to_thread(_read_redis, url)
             except Exception as exc:  # the card says so; the demo carries on
                 view["store_error"] = type(exc).__name__
+        if os.environ.get("POD_WATCH") == "on":
+            try:
+                view["pods"] = await asyncio.to_thread(_read_pods)
+            except Exception as exc:  # the map falls back to static tiles
+                view["pods_error"] = type(exc).__name__
         return view

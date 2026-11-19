@@ -1,3 +1,34 @@
+# The host's own identity. With POD_WATCH=on the cluster console lists the
+# pods in this namespace to draw them; that is all this Role allows: get and
+# list pods in safiri. No secrets, no writes, nothing outside the namespace.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: host
+  namespace: safiri
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: pod-reader
+  namespace: safiri
+rules:
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [get, list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: host-pod-reader
+  namespace: safiri
+subjects:
+  - {kind: ServiceAccount, name: host, namespace: safiri}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: pod-reader
+---
 # The same FastAPI app as Demo 1. One replica: it holds the conversation
 # and the event log in memory.
 apiVersion: apps/v1
@@ -13,6 +44,7 @@ spec:
     metadata:
       labels: {app: host}
     spec:
+      serviceAccountName: host
       containers:
         - name: host
           image: safiri:demo2
@@ -27,6 +59,9 @@ spec:
             # The cluster look, and the Redis the bookings card reads (never writes).
             - {name: UI_SKIN, value: k8s}
             - {name: REDIS_URL, value: "redis://redis:6379/0"}
+            # Live pod tiles on the cluster map. Set to "off" (and apply)
+            # to fall back to static tiles if it misbehaves on stage.
+            - {name: POD_WATCH, value: "on"}
           # ANTHROPIC_* come from the Secret made from the local .env by
           # `kubectl create secret generic safiri-api --from-env-file=.env`.
           envFrom:
